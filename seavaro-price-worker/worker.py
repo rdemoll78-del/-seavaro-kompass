@@ -162,7 +162,7 @@ def run():
      for q in queries:
       for url in find_urls(q,sku,ean,desc):
        if url not in sources:sources.append(url)
-      if not sources:
+     if not sources:
       print('DOMAIN_FALLBACK',sku,flush=True)
       for domain in ('oltrevela.com','nauticabasile.it','comptoirnautique.com','yachtneeds.com'):
        for url in find_urls('"'+sku+'" site:'+domain,sku,ean,desc):
