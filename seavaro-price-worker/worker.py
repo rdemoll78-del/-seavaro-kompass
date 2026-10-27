@@ -115,4 +115,15 @@ def run():
      print('ERROR',sku,str(e)[:120],flush=True)
      continue
    c.execute('select pg_advisory_unlock(9042726)')
-if __name__=='__main__':run()
+if __name__=='__main__':
+ # Continue processing batches in one job rather than exiting after four SKUs.
+ deadline=time.monotonic()+int(os.environ.get("SEAVARO_RUN_SECONDS","3000"))
+ while time.monotonic()<deadline:
+  try:
+   run()
+  except Exception as exc:
+   print("RUN_ERROR",type(exc).__name__,str(exc)[:250],flush=True)
+   time.sleep(15)
+  else:
+   time.sleep(2)
+
