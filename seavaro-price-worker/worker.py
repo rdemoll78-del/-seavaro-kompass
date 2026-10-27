@@ -22,7 +22,16 @@ def is_productish(url):
  if any(x in path for x in ('/marke/','/marken/','/brand/','/brands/','/category/','/categories/')):return False
  return True
 
-def find_urls(q):
+def relevant_hit(label,sku,ean,description):
+ label=(label or '').lower()
+ compact=re.sub(r'[^0-9a-z]','',label)
+ if sku and (sku.lower() in label or re.sub(r'[^0-9a-z]','',sku.lower()) in compact):return True
+ if ean and str(ean) in compact:return True
+ stop={'with','from','black','white','marine','osculati','steel','type','mm','the','and'}
+ words=[w for w in re.findall(r'[a-z0-9]+',(description or '').lower()) if len(w)>=4 and w not in stop]
+ return len(set(w for w in words if w in label))>=2
+
+def find_urls(q,sku='',ean='',description=''):
  urls=[]
  # Bing RSS is structured and often works when the search HTML has no result anchors.
  try:
@@ -32,6 +41,8 @@ def find_urls(q):
   for item in root.findall('.//item'):
    link=(item.findtext('link') or '').strip()
    host=urllib.parse.urlparse(link).netloc.lower()
+   label=(item.findtext('title') or '')+' '+(item.findtext('description') or '')+' '+link
+   if not relevant_hit(label,sku,ean,description):continue
    if link.startswith('https://') and is_productish(link) and host and not any(x in host for x in ('bing.','google.','osculati.com','youtube.')):
     if link not in urls:urls.append(link)
   print('RSS_URLS',len(urls),flush=True)
@@ -55,6 +66,9 @@ def find_urls(q):
     if 'duckduckgo.com/l/' in href:
      href=urllib.parse.parse_qs(urllib.parse.urlsplit(href).query).get('uddg',[''])[0]
     if href.startswith('//'):href='https:'+href
+    parent=a.find_parent('li',class_='b_algo') or a.parent
+    label=(parent.get_text(' ',strip=True) if parent else a.get_text(' ',strip=True))+' '+href
+    if not relevant_hit(label,sku,ean,description):continue
     if not href.startswith('https://') or not is_productish(href):continue
     host=urllib.parse.urlparse(href).netloc.lower()
     if any(x in host for x in ('google.','bing.','duckduckgo.','youtube.','wikipedia.','facebook.','instagram.','amazonaws.','osculati.com')):continue
@@ -86,7 +100,7 @@ def parse_offer(url,sku,ean):
   try:
    for prod in collect_schema(json.loads(tag.string or tag.text or '{}')):
     identifiers=[str(prod.get(k,'')) for k in ('sku','gtin','gtin13','mpn')]
-    if not (sku_on_page or ean_on_page or any(digits(x) in (sku_normal,identifier) for x in identifiers if x)):continue
+    if not (any(digits(x) in (sku_normal,identifier) for x in identifiers if x) or sku.lower() in str(prod.get('url','')).lower() or sku.lower() in str(prod.get('name','')).lower()):continue
     offers=prod.get('offers',[])
     for o in (offers if isinstance(offers,list) else [offers]):
      if not isinstance(o,dict):continue
@@ -96,7 +110,21 @@ def parse_offer(url,sku,ean):
       price=float(str(p).replace(',','.'))
       if 0<price<1000000:best.append((price,cur,prod.get('name','')))
   except (ValueError,TypeError):continue
- if not best:
+ # Variant tables often contain exact SKU rows with their own prices.
+ for tr in soup.select('tr'):
+  row=tr.get_text(' ',strip=True)
+  if not re.search(r'(?<![0-9A-Za-z])'+re.escape(sku)+r'(?![0-9A-Za-z])',row,re.I):continue
+  values=re.findall(r'(?:€\s*([0-9][0-9., ]{0,15})|([0-9][0-9., ]{0,15})\s*€)',row)
+  for pair in values:
+   raw=(pair[0] or pair[1]).strip().replace(' ','')
+   if ',' in raw and '.' in raw:
+    raw=raw.replace('.','').replace(',','.') if raw.rfind(',')>raw.rfind('.') else raw.replace(',','')
+   elif ',' in raw:raw=raw.replace(',','.')
+   try:
+    value=float(raw)
+    if 0<value<1000000:best.append((value,'EUR','VARIANT_ROW SKU_EXACT '+('PZ' if re.search(r'\bPZ\b',row,re.I) else 'UNIT_UNKNOWN')))
+   except ValueError:pass
+ if not best and (sku.lower() in url.lower() or (soup.title and sku.lower() in soup.title.get_text(' ',strip=True).lower())):
   for meta in soup.select('meta[property="product:price:amount"]'):
    raw=meta.get('content','').strip()
    try:
@@ -106,7 +134,8 @@ def parse_offer(url,sku,ean):
  if not best:return None
  price,cur,name=min(best)
  # JSON-LD offer is captured as candidate only. Currency/unit and exact variant need manual evidence verification.
- return dict(sku=sku,url=url,merchant=host,price=price,currency=cur or 'UNKNOWN',unit='UNKNOWN',evidence=('JSON-LD candidate; exact unit requires verification; '+str(name))[:500])
+ unit='STUECK' if 'VARIANT_ROW SKU_EXACT PZ' in str(name) else 'UNKNOWN'
+ return dict(sku=sku,url=url,merchant=host,price=price,currency=cur or 'UNKNOWN',unit=unit,evidence=('UNVERIFIED CANDIDATE; SKU checked; '+str(name))[:500])
 def run():
  with db() as conn:
   with conn.cursor() as c:
@@ -124,11 +153,11 @@ def run():
    print('QUEUE_STATUS',c.fetchall(),flush=True)
    for sku,ean,desc,attempts in batch:
     try:
-     queries=[x for x in (ean,sku,desc) if x]
+     queries=[x for x in ((('"'+str(ean)+'"') if ean else ''),(('"'+sku+'" Osculati') if sku else ''),('Osculati '+desc[:95] if desc else '')) if x]
      print('RESEARCH_START',sku,'searches',len(queries),flush=True)
      sources=[]
      for q in queries:
-      for url in find_urls('"'+q+'"' if q in (ean,sku) else q):
+      for url in find_urls(q,sku,ean,desc):
        if url not in sources:sources.append(url)
      print('SEARCH_URLS',sku,len(sources),flush=True)
      print('SEARCH_URL_SAMPLE',sku,sources[:6],flush=True)
