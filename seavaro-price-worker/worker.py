@@ -89,10 +89,12 @@ def run():
    for sku,ean,desc,attempts in batch:
     try:
      queries=[x for x in (ean,sku,desc) if x]
+     print('RESEARCH_START',sku,'searches',len(queries),flush=True)
      sources=[]
      for q in queries:
       for url in find_urls('Osculati '+q):
        if url not in sources:sources.append(url)
+     print('SEARCH_URLS',sku,len(sources),flush=True)
      count=0
      for url in sources[:20]:
       try:
