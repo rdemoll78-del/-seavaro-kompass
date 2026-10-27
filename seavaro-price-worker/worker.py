@@ -102,7 +102,7 @@ def run():
       except Exception as e:
        c.execute('insert into research_log(sku,status,note) values(%s,%s,%s)',(sku,'SOURCE_ERROR',(url+' '+str(e))[:700]))
      # No false assertion that no competitor exists; mark examined and preserve candidates
-     status='CANDIDATES' if count else 'NO_CONFIRMED_OFFER'
+     status='CANDIDATES' if count else 'REVIEW_REQUIRED'
      c.execute('update product_queue set status=%s,attempts=attempts+1,updated_at=now(),last_error=null where sku=%s',(status,sku))
      c.execute('insert into research_log(sku,status,note) values(%s,%s,%s)',(sku,status,'sources='+str(len(sources))+' jsonld_candidates='+str(count)))
      print(sku,status,count,flush=True)
