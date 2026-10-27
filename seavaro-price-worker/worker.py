@@ -114,7 +114,8 @@ def parse_offer(url,sku,ean):
  for tr in soup.select('tr'):
   row=tr.get_text(' ',strip=True)
   if not re.search(r'(?<![0-9A-Za-z])'+re.escape(sku)+r'(?![0-9A-Za-z])',row,re.I):continue
-  values=re.findall(r'(?:€\s*([0-9][0-9.,\s]{0,15})|([0-9][0-9.,\s]{0,15})\s*€)',row)
+  row_after_sku=re.split(re.escape(sku),row,maxsplit=1,flags=re.I)[-1]
+  values=re.findall(r'(?:€\s*([0-9][0-9.,\s]{0,15})|([0-9][0-9.,\s]{0,15})\s*€)',row_after_sku)
   for pair in values:
    raw=re.sub(r'\s+','',(pair[0] or pair[1]).strip())
    if ',' in raw and '.' in raw:
