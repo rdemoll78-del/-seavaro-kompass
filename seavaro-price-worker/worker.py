@@ -20,7 +20,7 @@ def find_urls(q):
  for endpoint in ['https://www.bing.com/search?q=','https://html.duckduckgo.com/html/?q=']:
   try:
    soup=BeautifulSoup(request(endpoint+urllib.parse.quote(q)),'html.parser')
-   for a in soup.select('li.b_algo h2 a[href], a.result__a[href], a.result-link[href], a[href]'):
+   for a in soup.select('li.b_algo h2 a[href], a.result__a[href], a.result-link[href]'):
     href=a.get('href','')
     if href.startswith('/url?q='):href=urllib.parse.parse_qs(urllib.parse.urlsplit(href).query).get('q',[''])[0]
     if 'duckduckgo.com/l/' in href:
@@ -95,6 +95,7 @@ def run():
       for url in find_urls('Osculati '+q):
        if url not in sources:sources.append(url)
      print('SEARCH_URLS',sku,len(sources),flush=True)
+     print('SEARCH_STATS',sku,'urls',len(sources),'attempt',attempts+1,flush=True)
      count=0
      for url in sources[:20]:
       try:
@@ -107,7 +108,7 @@ def run():
      # No false assertion that no competitor exists; mark examined and preserve candidates
      status='CANDIDATES' if count else 'REVIEW_REQUIRED'
      c.execute('update product_queue set status=%s,attempts=attempts+1,updated_at=now(),last_error=null where sku=%s',(status,sku))
-     c.execute('insert into research_log(sku,status,note) values(%s,%s,%s)',(sku,status,'sources='+str(len(sources))+' jsonld_candidates='+str(count)))
+     c.execute('insert into research_log(sku,status,note) values(%s,%s,%s)',(sku,status,'sources='+str(len(sources))+' jsonld_candidates='+str(count)+'; not a conclusive no-competitor finding'))
      print(sku,status,count,flush=True)
     except Exception as e:
      c.execute('update product_queue set status=%s,attempts=attempts+1,last_error=%s,updated_at=now() where sku=%s',('ERROR',str(e)[:400],sku))
