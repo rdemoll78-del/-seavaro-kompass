@@ -90,6 +90,13 @@ def parse_offer(url,sku,ean):
       price=float(str(p).replace(',','.'))
       if 0<price<1000000:best.append((price,cur,prod.get('name','')))
   except (ValueError,TypeError):continue
+ if not best:
+  for meta in soup.select('meta[property="product:price:amount"]'):
+   raw=meta.get('content','').strip()
+   try:
+    value=float(raw.replace(',','.'))
+    if 0 < value < 1000000:best.append((value,'UNKNOWN','metadata candidate'))
+   except ValueError:pass
  if not best:return None
  price,cur,name=min(best)
  # JSON-LD offer is captured as candidate only. Currency/unit and exact variant need manual evidence verification.
