@@ -118,6 +118,7 @@ def run():
       for url in find_urls('Osculati '+q):
        if url not in sources:sources.append(url)
      print('SEARCH_URLS',sku,len(sources),flush=True)
+     print('SEARCH_URL_SAMPLE',sku,sources[:6],flush=True)
      print('SEARCH_STATS',sku,'urls',len(sources),'attempt',attempts+1,flush=True)
      count=0
      for url in sources[:20]:
