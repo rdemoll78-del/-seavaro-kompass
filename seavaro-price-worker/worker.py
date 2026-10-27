@@ -159,6 +159,14 @@ def run():
      queries=[x for x in ((('"'+str(ean)+'"') if ean else ''),(('"'+sku+'" Osculati') if sku else ''),('Osculati '+desc[:95] if desc else '')) if x]
      print('RESEARCH_START',sku,'searches',len(queries),flush=True)
      sources=[]
+     # Prefer structured provider responses when an API key is configured.
+     try:
+      from search_api import lookup
+      for q in queries[:2]:
+       for url in lookup(q,sku,ean):
+        if url not in sources:sources.append(url)
+     except Exception as exc:
+      print('STRUCTURED_SEARCH_ERROR',type(exc).__name__,str(exc)[:120],flush=True)
      for q in queries:
       for url in find_urls(q,sku,ean,desc):
        if url not in sources:sources.append(url)
