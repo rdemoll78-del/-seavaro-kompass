@@ -4,6 +4,11 @@ def load_private_queue(cursor):
     if not chunks:
         print("QUEUE_NOT_CONFIGURED",flush=True)
         return 0
+    cursor.execute("select count(*) from product_queue")
+    existing=cursor.fetchone()[0]
+    if existing>=9256:
+        print("QUEUE_ALREADY_IMPORTED",existing,flush=True)
+        return 0
     total=0
     for key,chunk in chunks:
         for row in csv.reader(io.StringIO(chunk),delimiter="|"):
