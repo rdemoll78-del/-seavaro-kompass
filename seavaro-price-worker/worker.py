@@ -168,6 +168,8 @@ def run():
        offer=parse_offer(url,sku,ean)
        if offer:
         c.execute('insert into offers(sku,merchant,price,currency,unit,url,evidence) values(%s,%s,%s,%s,%s,%s,%s) on conflict do nothing',(sku,offer['merchant'],offer['price'],offer['currency'],offer['unit'],url,offer['evidence']))
+        if c.rowcount:
+         print('OFFER_CANDIDATE',json.dumps(dict(offer,observed_at_utc=datetime.datetime.now(datetime.timezone.utc).isoformat()),ensure_ascii=False),flush=True)
         count+=1
       except Exception as e:
        c.execute('insert into research_log(sku,status,note) values(%s,%s,%s)',(sku,'SOURCE_ERROR',(url+' '+str(e))[:700]))
@@ -180,6 +182,8 @@ def run():
      c.execute('update product_queue set status=%s,attempts=attempts+1,last_error=%s,updated_at=now() where sku=%s',('ERROR',str(e)[:400],sku))
      print('ERROR',sku,str(e)[:120],flush=True)
      continue
+   c.execute('select count(*),count(distinct sku) from offers')
+   print('OFFER_TOTALS',c.fetchone(),flush=True)
    c.execute('select pg_advisory_unlock(9042726)')
    return len(batch)
 if __name__=='__main__':
