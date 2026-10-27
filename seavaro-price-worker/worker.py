@@ -3,13 +3,14 @@ import requests, psycopg
 from bs4 import BeautifulSoup
 
 DB=os.environ["DATABASE_URL"]
-UA={"User-Agent":"Mozilla/5.0 (compatible; SEAVAROPriceResearch/1.0; commercial price comparison)"}
+UA={"User-Agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36","Accept-Language":"de-DE,de;q=0.9,en;q=0.8"}
 def db():
  return psycopg.connect(DB,connect_timeout=15,autocommit=True)
 def init(c):
  c.execute("""create table if not exists product_queue(sku text primary key,ean text,description text,status text default 'OPEN',attempts int default 0,last_error text,updated_at timestamptz);""")
  c.execute("""create table if not exists offers(id bigserial primary key,sku text not null,merchant text,price numeric(12,2),currency text,unit text,url text not null,observed_at timestamptz default now(),evidence text,unique(sku,url,price));""")
  c.execute("""create table if not exists research_log(id bigserial primary key,sku text,at timestamptz default now(),status text,note text);""")
+ c.execute("update product_queue set status=%s where status=%s",("REVIEW_REQUIRED","NO_CONFIRMED_OFFER"))
 def request(url):
  r=requests.get(url,headers=UA,timeout=18,allow_redirects=True)
  r.raise_for_status()
@@ -19,8 +20,11 @@ def find_urls(q):
  urls=[]
  for endpoint in ['https://www.bing.com/search?q=','https://html.duckduckgo.com/html/?q=']:
   try:
-   soup=BeautifulSoup(request(endpoint+urllib.parse.quote(q)),'html.parser')
-   for a in soup.select('li.b_algo h2 a[href], a.result__a[href], a.result-link[href]'):
+   raw=request(endpoint+urllib.parse.quote(q))
+   soup=BeautifulSoup(raw,'html.parser')
+   links=soup.select('li.b_algo h2 a[href], a.result__a[href], a.result-link[href]')
+   print('SEARCH_PAGE_DIAG',urllib.parse.urlparse(endpoint).netloc,'bytes',len(raw),'links',len(links),'title',soup.title.get_text(' ',strip=True)[:80] if soup.title else 'NONE',flush=True)
+   for a in links:
     href=a.get('href','')
     if href.startswith('/url?q='):href=urllib.parse.parse_qs(urllib.parse.urlsplit(href).query).get('q',[''])[0]
     if 'duckduckgo.com/l/' in href:
@@ -81,7 +85,7 @@ def run():
    # Avoid competing processes by PostgreSQL advisory lock
    c.execute('select pg_try_advisory_lock(9042726)')
    if not c.fetchone()[0]:
-    print('Another run active');return
+    print('Another run active',flush=True);return 0
    c.execute("select sku,ean,description,attempts from product_queue where status in ('OPEN','RETRY') order by attempts,sku limit 4")
    batch=c.fetchall()
    c.execute('select status,count(*) from product_queue group by status order by status')
@@ -118,7 +122,7 @@ def run():
    return len(batch)
 if __name__=='__main__':
  # Continue processing batches in one job rather than exiting after four SKUs.
- deadline=time.monotonic()+int(os.environ.get("SEAVARO_RUN_SECONDS","3000"))
+ deadline=time.monotonic()+min(155,int(os.environ.get("SEAVARO_RUN_SECONDS","155")))
  while time.monotonic()<deadline:
   try:
    processed=run()
