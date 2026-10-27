@@ -18,6 +18,18 @@ def request(url):
  return r.text
 def find_urls(q):
  urls=[]
+ # Bing RSS is structured and often works when the search HTML has no result anchors.
+ try:
+  import xml.etree.ElementTree as ET
+  feed=request('https://www.bing.com/search?format=rss&q='+urllib.parse.quote(q))
+  root=ET.fromstring(feed)
+  for item in root.findall('.//item'):
+   link=(item.findtext('link') or '').strip()
+   host=urllib.parse.urlparse(link).netloc.lower()
+   if link.startswith('https://') and host and not any(x in host for x in ('bing.','google.','osculati.com','youtube.')):
+    if link not in urls:urls.append(link)
+  print('RSS_URLS',len(urls),flush=True)
+ except Exception as e:print('RSS_ERROR',type(e).__name__,str(e)[:110],flush=True)
  for endpoint in ['https://www.bing.com/search?q=','https://html.duckduckgo.com/html/?q=']:
   try:
    raw=request(endpoint+urllib.parse.quote(q))
