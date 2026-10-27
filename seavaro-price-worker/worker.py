@@ -72,6 +72,8 @@ def run():
  with db() as conn:
   with conn.cursor() as c:
    init(c)
+   from queue_loader import load_private_queue
+   load_private_queue(c)
    # Four public catalogue IDs only: connectivity smoke-test, not the full business queue.
    seed=[("42.354.00","8033137056338","Telescopic davit 180 kg per pair"),("06.470.36","8033137203312","Megayacht double mooring braid black 36 mm"),("06.429.16BL","8033137076282","Marlow D2 Racing braid blue 16 mm"),("06.430.16BI","8033137076350","Marlow D2 Classic braid white 16 mm")]
    for sku,ean,description in seed:
