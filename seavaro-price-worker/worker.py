@@ -17,15 +17,18 @@ def request(url):
  return r.text
 def find_urls(q):
  urls=[]
- for endpoint in ['https://www.google.com/search?q=','https://www.bing.com/search?q=']:
+ for endpoint in ['https://www.bing.com/search?q=','https://html.duckduckgo.com/html/?q=']:
   try:
    soup=BeautifulSoup(request(endpoint+urllib.parse.quote(q)),'html.parser')
-   for a in soup.select('a[href]'):
+   for a in soup.select('li.b_algo h2 a[href], a.result__a[href], a.result-link[href], a[href]'):
     href=a.get('href','')
     if href.startswith('/url?q='):href=urllib.parse.parse_qs(urllib.parse.urlsplit(href).query).get('q',[''])[0]
+    if 'duckduckgo.com/l/' in href:
+     href=urllib.parse.parse_qs(urllib.parse.urlsplit(href).query).get('uddg',[''])[0]
+    if href.startswith('//'):href='https:'+href
     if not href.startswith('https://'):continue
     host=urllib.parse.urlparse(href).netloc.lower()
-    if any(x in host for x in ('google.','bing.','youtube.','wikipedia.','facebook.','instagram.','amazonaws.','osculati.com')):continue
+    if any(x in host for x in ('google.','bing.','duckduckgo.','youtube.','wikipedia.','facebook.','instagram.','amazonaws.','osculati.com')):continue
     if href not in urls:urls.append(href)
     if len(urls)>=18:return urls
   except Exception as e:print('SEARCH_ERROR',type(e).__name__,str(e)[:100],flush=True)
@@ -81,6 +84,8 @@ def run():
     print('Another run active');return
    c.execute("select sku,ean,description,attempts from product_queue where status in ('OPEN','RETRY') order by attempts,sku limit 4")
    batch=c.fetchall()
+   c.execute('select status,count(*) from product_queue group by status order by status')
+   print('QUEUE_STATUS',c.fetchall(),flush=True)
    for sku,ean,desc,attempts in batch:
     try:
      queries=[x for x in (ean,sku,desc) if x]
