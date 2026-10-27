@@ -47,7 +47,9 @@ def find_urls(q,sku='',ean='',description=''):
     if link not in urls:urls.append(link)
   print('RSS_URLS',len(urls),flush=True)
  except Exception as e:print('RSS_ERROR',type(e).__name__,str(e)[:110],flush=True)
- for endpoint in ['https://www.bing.com/search?q=','https://html.duckduckgo.com/html/?q=']:
+ endpoints=['https://www.bing.com/search?q=']
+ if os.environ.get('SEAVARO_DDG_FALLBACK','0')=='1':endpoints.append('https://html.duckduckgo.com/html/?q=')
+ for endpoint in endpoints:
   try:
    raw=request(endpoint+urllib.parse.quote(q))
    soup=BeautifulSoup(raw,'html.parser')
