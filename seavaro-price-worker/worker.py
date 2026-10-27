@@ -16,6 +16,12 @@ def request(url):
  r.raise_for_status()
  if len(r.content)>1500000: raise ValueError('too large')
  return r.text
+def is_productish(url):
+ path=urllib.parse.urlsplit(url).path.lower().strip('/')
+ if not path:return False
+ if any(x in path for x in ('/marke/','/marken/','/brand/','/brands/','/category/','/categories/')):return False
+ return True
+
 def find_urls(q):
  urls=[]
  # Bing RSS is structured and often works when the search HTML has no result anchors.
@@ -26,7 +32,7 @@ def find_urls(q):
   for item in root.findall('.//item'):
    link=(item.findtext('link') or '').strip()
    host=urllib.parse.urlparse(link).netloc.lower()
-   if link.startswith('https://') and host and not any(x in host for x in ('bing.','google.','osculati.com','youtube.')):
+   if link.startswith('https://') and is_productish(link) and host and not any(x in host for x in ('bing.','google.','osculati.com','youtube.')):
     if link not in urls:urls.append(link)
   print('RSS_URLS',len(urls),flush=True)
  except Exception as e:print('RSS_ERROR',type(e).__name__,str(e)[:110],flush=True)
@@ -49,7 +55,7 @@ def find_urls(q):
     if 'duckduckgo.com/l/' in href:
      href=urllib.parse.parse_qs(urllib.parse.urlsplit(href).query).get('uddg',[''])[0]
     if href.startswith('//'):href='https:'+href
-    if not href.startswith('https://'):continue
+    if not href.startswith('https://') or not is_productish(href):continue
     host=urllib.parse.urlparse(href).netloc.lower()
     if any(x in host for x in ('google.','bing.','duckduckgo.','youtube.','wikipedia.','facebook.','instagram.','amazonaws.','osculati.com')):continue
     if href not in urls:urls.append(href)
