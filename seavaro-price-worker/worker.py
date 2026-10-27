@@ -149,7 +149,7 @@ def run():
    # Avoid competing processes by PostgreSQL advisory lock
    c.execute('select pg_try_advisory_lock(9042726)')
    if not c.fetchone()[0]:
-    print('Another run active',flush=True);return 0
+    print('Another run active',flush=True);return -1
    c.execute("select sku,ean,description,attempts from product_queue where status in ('OPEN','RETRY') order by attempts,sku limit 4")
    batch=c.fetchall()
    c.execute('select status,count(*) from product_queue group by status order by status')
@@ -162,6 +162,12 @@ def run():
      for q in queries:
       for url in find_urls(q,sku,ean,desc):
        if url not in sources:sources.append(url)
+      if not sources:
+      print('DOMAIN_FALLBACK',sku,flush=True)
+      for domain in ('oltrevela.com','nauticabasile.it','comptoirnautique.com','yachtneeds.com'):
+       for url in find_urls('"'+sku+'" site:'+domain,sku,ean,desc):
+        if url not in sources:sources.append(url)
+       if len(sources)>=5:break
      print('SEARCH_URLS',sku,len(sources),flush=True)
      print('SEARCH_URL_SAMPLE',sku,sources[:6],flush=True)
      print('SEARCH_STATS',sku,'urls',len(sources),'attempt',attempts+1,flush=True)
@@ -195,6 +201,9 @@ if __name__=='__main__':
  while time.monotonic()<deadline:
   try:
    processed=run()
+   if processed<0:
+    print('QUEUE_LOCKED_BY_OTHER_RUN',flush=True)
+    break
    if processed==0:
     print('QUEUE_NO_MORE_OPEN_ITEMS',flush=True)
     break
