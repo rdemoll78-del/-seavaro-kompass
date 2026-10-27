@@ -1,4 +1,4 @@
-import os,time,re,json,html,random,urllib.parse,datetime
+import os,time,re,json,html,random,urllib.parse,datetime,base64
 import requests, psycopg
 from bs4 import BeautifulSoup
 
@@ -36,8 +36,15 @@ def find_urls(q):
    soup=BeautifulSoup(raw,'html.parser')
    links=soup.select('li.b_algo h2 a[href], a.result__a[href], a.result-link[href]')
    print('SEARCH_PAGE_DIAG',urllib.parse.urlparse(endpoint).netloc,'bytes',len(raw),'links',len(links),'title',soup.title.get_text(' ',strip=True)[:80] if soup.title else 'NONE',flush=True)
+   if links:print('SEARCH_LINK_SAMPLE',urllib.parse.urlparse(endpoint).netloc,links[0].get('href','')[:190],flush=True)
    for a in links:
     href=a.get('href','')
+    if 'bing.com/ck/a' in href:
+     encoded=urllib.parse.parse_qs(urllib.parse.urlsplit(href).query).get('u',[''])[0]
+     try:
+      if encoded.startswith('a1'):href=base64.urlsafe_b64decode(encoded[2:]+'===').decode('utf-8')
+      elif encoded.startswith('http'):href=encoded
+     except (ValueError,UnicodeDecodeError):continue
     if href.startswith('/url?q='):href=urllib.parse.parse_qs(urllib.parse.urlsplit(href).query).get('q',[''])[0]
     if 'duckduckgo.com/l/' in href:
      href=urllib.parse.parse_qs(urllib.parse.urlsplit(href).query).get('uddg',[''])[0]
@@ -46,7 +53,7 @@ def find_urls(q):
     host=urllib.parse.urlparse(href).netloc.lower()
     if any(x in host for x in ('google.','bing.','duckduckgo.','youtube.','wikipedia.','facebook.','instagram.','amazonaws.','osculati.com')):continue
     if href not in urls:urls.append(href)
-    if len(urls)>=18:return urls
+    if len(urls)>=5:return urls
   except Exception as e:print('SEARCH_ERROR',type(e).__name__,str(e)[:100],flush=True)
  return urls
 def collect_schema(obj):
