@@ -122,7 +122,7 @@ def run():
      print('RESEARCH_START',sku,'searches',len(queries),flush=True)
      sources=[]
      for q in queries:
-      for url in find_urls('Osculati '+q):
+      for url in find_urls('"'+q+'"' if q in (ean,sku) else q):
        if url not in sources:sources.append(url)
      print('SEARCH_URLS',sku,len(sources),flush=True)
      print('SEARCH_URL_SAMPLE',sku,sources[:6],flush=True)
