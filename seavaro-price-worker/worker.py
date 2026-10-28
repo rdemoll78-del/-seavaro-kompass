@@ -153,6 +153,26 @@ def run():
    # Fail closed: an explicit SKU-level active set must exist and match the approved split.
    # The dropshipping economic indicator is never used to infer eligibility here.
    c.execute("create table if not exists research_priority(sku text primary key references product_queue(sku), active boolean not null, source text not null, updated_at timestamptz default now())")
+   # Source-derived exclusion list is stored only in Render's private environment, never GitHub.
+   yellow_keys=sorted(k for k in os.environ if re.fullmatch(r'SEAVARO_YELLOW_SKUS_[0-9]+',k))
+   if yellow_keys:
+    yellow=[sku.strip() for key in yellow_keys for sku in os.environ[key].split(',') if sku.strip()]
+    if len(yellow)!=4211 or len(set(yellow))!=4211:
+     print("PRIORITY_SOURCE_INVALID",len(yellow),len(set(yellow)),flush=True);return 0
+    c.execute("select count(*),count(distinct sku) from product_queue")
+    total_queue,unique_queue=c.fetchone()
+    if (total_queue,unique_queue)!=(9256,9256):
+     print("PRIORITY_QUEUE_MISMATCH",total_queue,unique_queue,flush=True);return 0
+    c.execute("select count(*) from product_queue where sku=any(%s)",(yellow,))
+    matched=c.fetchone()[0]
+    if matched!=4211:
+     print("PRIORITY_SKU_MISMATCH",matched,flush=True);return 0
+    c.execute("""insert into research_priority(sku,active,source)
+                 select sku,not (sku=any(%s)),'SEAVARO_2026_10_27_DROPSHIPPING_SOURCE'
+                 from product_queue
+                 on conflict(sku) do update set active=excluded.active,source=excluded.source,
+                     updated_at=now()""",(yellow,))
+    print("PRIORITY_LOADED",total_queue,matched,flush=True)
    c.execute("""select count(*),count(*) filter (where active),count(*) filter (where not active)
                 from research_priority""")
    total,active,paused=c.fetchone()
