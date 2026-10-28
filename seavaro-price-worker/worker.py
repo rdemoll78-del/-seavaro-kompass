@@ -140,6 +140,16 @@ def parse_offer(url,sku,ean):
  unit='STUECK' if 'VARIANT_ROW SKU_EXACT PZ' in str(name) else 'UNKNOWN'
  return dict(sku=sku,url=url,merchant=host,price=price,currency=cur or 'UNKNOWN',unit=unit,evidence=('UNVERIFIED CANDIDATE; SKU checked; '+str(name))[:500])
 def run():
+ # Run no database mutations when private SKU priorities have not been installed.
+ # SEAVARO_RUN_SECONDS=0 remains the independent operator kill switch.
+ keys=sorted(k for k in os.environ if re.fullmatch(r'SEAVARO_YELLOW_SKUS_[0-9]+',k))
+ if not keys:
+  print("PRIORITY_NOT_CONFIGURED_NO_DB_ACCESS",flush=True)
+  return 0
+ yellow=[sku.strip() for key in keys for sku in os.environ[key].split(',') if sku.strip()]
+ if len(yellow)!=4211 or len(set(yellow))!=4211:
+  print("PRIORITY_INVALID_NO_DB_ACCESS",len(yellow),len(set(yellow)),flush=True)
+  return 0
  with db() as conn:
   with conn.cursor() as c:
    init(c)
