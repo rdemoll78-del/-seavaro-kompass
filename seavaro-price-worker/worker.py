@@ -150,7 +150,21 @@ def run():
    c.execute('select pg_try_advisory_lock(9042726)')
    if not c.fetchone()[0]:
     print('Another run active',flush=True);return -1
-   c.execute("select sku,ean,description,attempts from product_queue where status in ('OPEN','RETRY') order by attempts,sku limit 4")
+   # Fail closed: an explicit SKU-level active set must exist and match the approved split.
+   # The dropshipping economic indicator is never used to infer eligibility here.
+   c.execute("create table if not exists research_priority(sku text primary key references product_queue(sku), active boolean not null, source text not null, updated_at timestamptz default now())")
+   c.execute("""select count(*),count(*) filter (where active),count(*) filter (where not active)
+                from research_priority""")
+   total,active,paused=c.fetchone()
+   c.execute("select count(*) from product_queue")
+   queue_total=c.fetchone()[0]
+   if queue_total!=9256 or (total,active,paused)!=(9256,5045,4211):
+    print("PRIORITY_NOT_VERIFIED",queue_total,total,active,paused,flush=True)
+    return 0
+   c.execute("""select q.sku,q.ean,q.description,q.attempts
+                from product_queue q join research_priority p on p.sku=q.sku
+                where p.active=true and q.status in ('OPEN','RETRY')
+                order by q.attempts,q.sku limit 4""")
    batch=c.fetchall()
    c.execute('select status,count(*) from product_queue group by status order by status')
    print('QUEUE_STATUS',c.fetchall(),flush=True)
